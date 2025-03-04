@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Import Content</title>
+  <!-- Bootstrap CSS (modern Bootstrap) -->
+  <link rel="stylesheet" href="/cdn/bootstrap.min.css">
+  <!-- Custom CSS if needed -->
+  <style>
+    .result {
+      margin-top: 15px;
+      font-weight: bold;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container my-4">
+    <h1 class="mb-4">Import Content</h1>
+    <form id="import-form">
+      <div class="mb-3">
+        <label for="import-link" class="form-label">Enter URL</label>
+        <input type="text" class="form-control" id="import-link" name="import-link" placeholder="Paste link here">
+      </div>
+      <button type="button" id="detect-button" class="btn btn-primary btn-lg">Detect & Parse</button>
+    </form>
+    <div id="result" class="result"></div>
+  </div>
+
+  <!-- Load cdn scripts -->
+  <script src="/cdn/jquery.min.js"></script>
+  <script src="/cdn/bootstrap.bundle.min.js"></script>
+  <script type="text/javascript">
+    function get_json( url ) {
+      return new Promise( function( resolve , reject ) {
+        try {
+          var xhr = new XMLHttpRequest();
+          xhr.open( "GET" , url , false );
+          xhr.setRequestHeader("Content-Type", "application/json");
+          xhr.onload = function () {
+            if (xhr.status === 200) {
+              var response = JSON.parse(xhr.responseText);
+              resolve(response);
+              return;
+            } else {
+              console.error( "error importing item:" , xhr.statusText );
+              resolve(false);
+              return;
+            }
+          };
+          xhr.onerror = function () {
+            console.error("GET request error");
+            resolve(false);
+            return;
+          };
+          xhr.send();
+        } catch (error) {
+          console.log(error);
+          resolve(false);
+          return;
+        }
+      });
+    }
+    async function parseLink(link) {
+      let result = {};
+      try {
+        // Use the URL constructor to help with query params and path extraction.
+        let urlObj = new URL(link);
+        // YouTube Playlist: look for "list=" in query parameters
+        if (link.match(/(youtube\.com\/.*(list=)|youtu\.be\/.*(list=))/i)) {
+          result.type = "YouTube Playlist";
+          result.playlistId = urlObj.searchParams.get( 'list' ) || "Not Found";
+          let url = window.location.href.replace( /\/import$/ ,`/import/youtube/playlist/${result.playlistId}` );
+          let import_result = await get_json( url );
+          return result;
+        }
+        // YouTube Channel: match /channel/ or /user/ followed by an ID or username
+        if (link.match(/youtube\.com\/(channel|user)\/([a-zA-Z0-9_-]+)/i)) {
+          result.type = "YouTube Channel";
+          let match = link.match(/youtube\.com\/(channel|user)\/([a-zA-Z0-9_-]+)/i);
+          if (match) {
+            result.channelType = match[1]; // "channel" or "user"
+            result.channelId = match[2];
+          }
+          return result;
+        }
+        // YouTube Video: detect "watch?v=" or shortened youtu.be link
+        if ( link.match( /(youtube\.com\/watch\?v=|youtu\.be\/)/i ) ) {
+          result.type = "YouTube Video";
+          if (link.includes("watch?v=")) {
+            result.videoId = urlObj.searchParams.get('v') || "Not Found";
+          } else {
+            // For youtu.be links, the pathname holds the video ID
+            result.videoId = urlObj.pathname.substring(1);
+          }
+
+          return result;
+        }
+        // Spotify Playlist: URLs typically include "open.spotify.com/playlist/<playlistId>"
+        if (link.match(/open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)/i)) {
+          result.type = "Spotify Playlist";
+          let match = link.match(/open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)/i);
+          if (match) {
+            result.playlistId = match[1];
+          }
+          return result;
+        }
+        // Twitch VOD: usually contains "twitch.tv/videos/<videoId>"
+        if (link.match(/twitch\.tv\/videos\/(\d+)/i)) {
+          result.type = "Twitch VOD";
+          let match = link.match(/twitch\.tv\/videos\/(\d+)/i);
+          if (match) {
+            result.videoId = match[1];
+          }
+          return result;
+        }
+        // Twitch User: if it’s a Twitch link but not a video
+        if (link.match(/twitch\.tv\/(?!videos\/)([a-zA-Z0-9_]+)/i)) {
+          result.type = "Twitch User";
+          let match = link.match(/twitch\.tv\/(?!videos\/)([a-zA-Z0-9_]+)/i);
+          if (match) {
+            result.username = match[1];
+          }
+          return result;
+        }
+        // Disney Plus: Attempt to extract a content id from the URL path
+        if (link.match(/disneyplus\.com/i)) {
+          result.type = "Disney Plus Content";
+          // Assume the last segment of the pathname is an identifier
+          let segments = urlObj.pathname.split('/').filter(seg => seg);
+          result.contentId = segments.length ? segments[segments.length - 1] : "Not Found";
+          return result;
+        }
+        // Hulu: Extract a content id, e.g., from /watch/<id>
+        if (link.match(/hulu\.com\/watch\/([a-zA-Z0-9-]+)/i)) {
+          result.type = "Hulu Content";
+          let match = link.match(/hulu\.com\/watch\/([a-zA-Z0-9-]+)/i);
+          if (match) {
+            result.contentId = match[1];
+          }
+          return result;
+        }
+        result.type = "Unknown Content Type";
+      } catch (error) {
+        console.error("Error parsing URL:", error);
+        result.error = "Invalid URL";
+      }
+      return result;
+    }
+
+    document.getElementById("detect-button").addEventListener("click", function(){
+      let link = document.getElementById("import-link").value.trim();
+      let resultDiv = document.getElementById("result");
+      if (!link) {
+        resultDiv.textContent = "Please enter a URL.";
+        return;
+      }
+      let parsed = parseLink(link);
+      resultDiv.textContent = "Detected type: " + parsed.type + "\n" + JSON.stringify(parsed, null, 2);
+    });
+  </script>
+</body>
+</html>
