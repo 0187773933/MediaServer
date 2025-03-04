@@ -71,7 +71,7 @@
         if (link.match(/(youtube\.com\/.*(list=)|youtu\.be\/.*(list=))/i)) {
           result.type = "YouTube Playlist";
           result.playlistId = urlObj.searchParams.get( 'list' ) || "Not Found";
-          let url = window.location.href.replace( /\/import$/ ,`/import/youtube/playlist/${result.playlistId}` );
+          let url = window.location.href.replace( /\/import$/ ,`/youtube/import/playlist/${result.playlistId}` );
           let import_result = await get_json( url );
           return result;
         }

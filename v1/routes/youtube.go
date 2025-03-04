@@ -11,7 +11,6 @@ import (
 	youtube "github.com/0187773933/MediaServer/v1/youtube"
 )
 
-
 func YouTube_Playlist_Import( s *server.Server ) fiber.Handler {
 	return func( c *fiber.Ctx ) error {
 		playlist_id := c.Params( "playlist_id" )
@@ -93,6 +92,7 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 		playlist_title := ""
 		next_id := ""
 		next_title := ""
+		next_index := ""
 		next_position := ""
 		s.DB.View( func( tx *bolt.Tx ) error {
 			playlist_title_b := tx.Bucket( []byte( "youtube-titles-playlist" ) )
@@ -101,18 +101,21 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 			playlist_title = string( playlist_title_b.Get( []byte( playlist_id ) ) )
 			cl_key := fmt.Sprintf( "youtube-playlist-%s" , playlist_id )
 			cl := circular.Open( s.DB , cl_key )
-			current , _ , _ := cl.Current()
+			current , ci , _ := cl.Current()
 			current_id := string( current )
 			current_position := string( position_b.Get( current ) )
 			current_position_int , _ := strconv.Atoi( current_position )
 			if current_position_int == 0 {
 				next_id = current_id
+				next_index = string( ci )
 				next_title = string( title_b.Get( current ) )
 				next_position = "0"
 				return nil
 			}
 			next := cl.Next()
 			next_id = string( next )
+			_ , ni , _ := cl.Current()
+			next_index = string( ni )
 			next_title = string( title_b.Get( next ) )
 			next_position = "0"
 			return nil
@@ -122,6 +125,7 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 			"playlist_id": playlist_id ,
 			"playlist_title": playlist_title ,
 			"next_id": next_id ,
+			"next_index": next_index ,
 			"next_title": next_title ,
 			"next_position": next_position ,
 		})

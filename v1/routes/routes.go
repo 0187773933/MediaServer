@@ -7,7 +7,7 @@ import (
 	// base64 "encoding/base64"
 	fiber "github.com/gofiber/fiber/v2"
 	server "github.com/0187773933/GO_SERVER/v1/server"
-	// encryption "github.com/0187773933/encryption/v1/encryption"
+	// encryption "github.com/0187773933/encryption/v1/enscryption"
 	rate_limiter "github.com/gofiber/fiber/v2/middleware/limiter"
 )
 
@@ -89,10 +89,13 @@ func SetupAdminRoutes( s *server.Server ) {
 		})
 	})
 	admin.Use( s.ValidateAdminMW )
-	admin.Get( "/import" , HTML_ImportPage( s ) )
-	admin.Get( "/import/youtube/playlist/:playlist_id" , YouTube_Playlist_Import( s ) )
-	admin.Get( "/get/youtube/playlist/:playlist_id" , YouTube_Playlist_Get( s ) )
-	admin.Get( "/get/youtube/playlists" , YouTube_Playlist_GetAll( s ) )
-	admin.Get( "/next/youtube/playlist/:playlist_id" , YouTube_Playlist_Next( s ) )
-	// admin.Get( "/previous/youtube/playlist/:playlist_id" , YouTube_Playlist_Previous( s ) )
+	admin.Get( "/import" , HTML_Serve( s , "import" ) )
+	// youtube
+	youtube := admin.Group( "/youtube" )
+	youtube.Get( "/playlist/:playlist_id" , HTML_Serve( s , "youtube-playlist" ) )
+	youtube.Get( "/import/playlist/:playlist_id" , YouTube_Playlist_Import( s ) )
+	youtube.Get( "/get/playlist/:playlist_id" , YouTube_Playlist_Get( s ) )
+	youtube.Get( "/get/playlists" , YouTube_Playlist_GetAll( s ) )
+	youtube.Get( "/playlist/:playlist_id/next" , YouTube_Playlist_Next( s ) )
+	// youtube.Get( "/playlist/:playlist_id/previous" , YouTube_Playlist_Previous( s ) )
 }

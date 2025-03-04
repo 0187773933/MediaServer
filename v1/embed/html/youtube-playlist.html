@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>YouTube Playlist</title>
+	<style>
+		body, html {
+			height: 100%;
+			width: 100%;
+			margin: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: black;
+		}
+		#yt-wrap {
+			width: 100%;
+			height: 100%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+		#ytplayer {
+			width: 100%;
+			height: 100%;
+		}
+		#playButton {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			width: 500px;
+			height: 500px;
+			color: white;
+			transform: translate(-50%, -50%);
+			background-color: red;
+			padding: 10px 20px;
+			cursor: pointer;
+			z-index: 1;
+		}
+	</style>
+</head>
+<body>
+	<div id="yt-wrap">
+		<div id="ytplayer"></div>
+		<div id="playButton">Play</div>
+	</div>
+	<script>
+
+		window.FSM = {
+			api_ready: false ,
+			player_ready: false ,
+			player: null ,
+			playlist_id: "" ,
+			saved_position: false ,
+		};
+
+		function onYouTubePlayerAPIReady( event ) {
+			console.log( "onYouTubePlayerAPIReady()" );
+			window.FSM.player = new YT.Player( "ytplayer" , {
+				width: "100%" ,
+				height: "100%" ,
+				playerVars: {
+					"autoplay": 1 ,
+					"playsinline": 1 ,
+				} ,
+				events: {
+					"onReady": onPlayerReady ,
+					"onStateChange": onPlayerStateChange
+				}
+			});
+			// startTrackingPosition();
+			window.FSM.api_ready = true;
+		}
+
+		function onPlayerReady( event ) {
+			console.log( "onPlayerReady()" , event );
+			window.FSM.player_ready = true;
+		}
+
+		function player_ready( timeout=10000 ) {
+			return new Promise( function( resolve , reject ) {
+				try {
+					let start = Date.now();
+					let interval = setInterval( ()=> {
+						if ( window.FSM.api_ready && window.FSM.player_ready ) {
+							clearInterval( interval );
+							resolve();
+							return;
+						}
+						if ( Date.now() - start > timeout ) {
+							clearInterval( interval );
+							resolve( false );
+							return;
+						}
+					} , 100 );
+				} catch( error ) {
+					resolve( false );
+					return;
+				}
+			});
+		}
+
+		function onPlayerStateChange( event ) {
+			console.log( "onPlayerStateChange()" , event );
+		}
+
+		function get_youtube_playlist_id_from_url() {
+			const match = window.location.href.match( /\/playlist\/([a-zA-Z0-9_-]+)$/ );
+			return match ? match[ 1 ] : false;
+		}
+
+		function format_admin_url( path ) {
+			return window.location.href.replace( /^([^\/]+\/\/[^\/]+\/[^\/]+\/)[^]*$/ , `$1${path}` );
+		}
+
+		function get_saved_playlist_position() {
+			return new Promise( function( resolve , reject ) {
+				try {
+					window.FSM.playlist_id = get_youtube_playlist_id_from_url();
+					let url = format_admin_url( `youtube/playlist/${window.FSM.playlist_id}/next` );
+					console.log( url );
+					let xhr = new XMLHttpRequest();
+					xhr.open( "GET" , url , false );
+					xhr.setRequestHeader( "Content-Type" , "application/json" );
+					xhr.onload = function () {
+						if ( xhr.status === 200 ) {
+							var response = JSON.parse( xhr.responseText );
+							resolve( response );
+							return;
+						} else {
+							console.error( "error importing item:" , xhr.statusText );
+							resolve( false );
+							return;
+						}
+					};
+					xhr.onerror = function () {
+						console.error( "GET request error" );
+						resolve( false );
+						return;
+					};
+					xhr.send();
+				} catch ( error ) {
+					console.log( error );
+					resolve( false );
+					return;
+				}
+			});
+		}
+
+		( async ()=> {
+
+			// Load YouTube API script
+			let tag = document.createElement( "script" );
+			tag.src = "https://www.youtube.com/player_api";
+			let first_script_tag = document.getElementsByTagName( "script" )[ 0 ];
+			first_script_tag.parentNode.insertBefore( tag , first_script_tag );
+
+			console.log( "1" );
+			window.FSM.saved_position = await get_saved_playlist_position();
+			console.log( window.FSM.saved_position );
+			console.log( "2" );
+
+			await player_ready();
+			console.log( "3" );
+
+			document.getElementById( "playButton" ).addEventListener( "click" , () => {
+				window.FSM.player.loadPlaylist({
+					list: window.FSM.saved_position.playlist_id ,
+					index: parseInt( window.FSM.start_index ) ,
+					startSeconds: parseInt( window.FSM.start_time ) ,
+				});
+				window.FSM.player.playVideo();
+				document.getElementById( "playButton" ).style.display = "none";
+			});
+
+		})();
+	</script>
