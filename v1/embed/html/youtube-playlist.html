@@ -191,7 +191,7 @@
 		function post_update_position() {
 			return new Promise( function( resolve , reject ) {
 				try {
-					let url = format_admin_url( `youtube/update/position/${window.FSM.current_id}/${window.FSM.current_position}/${window.FSM.current_completed}` );
+					let url = format_admin_url( `youtube/playlist/${window.FSM.playlist_id}/update/position/${window.FSM.current_id}/${window.FSM.current_position}` );
 					console.log( url );
 					let xhr = new XMLHttpRequest();
 					xhr.open( "GET" , url , false );
@@ -252,11 +252,11 @@
 					let duration = parseInt( window.FSM.player.getDuration() );
 					let completed_at = ( duration * 0.99 );
 
+					window.FSM.current_position = current_time;
 					if ( current_time >= completed_at ) {
 						window.FSM.current_completed = true;
+						window.FSM.current_position = -1;
 					}
-
-					window.FSM.current_position = current_time;
 					await post_update_position();
 					console.log( "checking position - 3" );
 				} catch( e ) { console.log( e ); return; }
@@ -280,10 +280,14 @@
 			document.getElementById( "playButton" ).addEventListener( "click" , () => {
 				window.FSM.player.loadPlaylist({
 					list: window.FSM.saved_position.playlist_id ,
-					index: parseInt( window.FSM.start_index ) ,
-					startSeconds: parseInt( window.FSM.start_time ) ,
+					listType: "playlist" ,
+					index: window.FSM.saved_position.next_index ,
+					startSeconds: window.FSM.saved_position.next_position ,
 				});
-				window.FSM.player.playVideo();
+				// window.FSM.player.setShuffle( false );
+				// window.FSM.player.seekTo( parseInt( window.FSM.next_position ) );
+				// window.FSM.player.playVideoAt( window.FSM.saved_position );
+				// window.FSM.player.playVideo();
 				document.getElementById( "playButton" ).style.display = "none";
 			});
 

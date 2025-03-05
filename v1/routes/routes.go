@@ -98,5 +98,5 @@ func SetupAdminRoutes( s *server.Server ) {
 	youtube.Get( "/get/playlists" , YouTube_Playlist_GetAll( s ) )
 	youtube.Get( "/playlist/:playlist_id/next" , YouTube_Playlist_Next( s ) )
 	// youtube.Get( "/playlist/:playlist_id/previous" , YouTube_Playlist_Previous( s ) )
-	youtube.Get( "/update/position/:video_id/:position/:completed" , YouTube_Update_Position( s ) )
+	youtube.Get( "/playlist/:playlist_id/update/position/:video_id/:position" , YouTube_Update_Position( s ) )
 }

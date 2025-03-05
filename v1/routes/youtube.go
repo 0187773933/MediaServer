@@ -2,79 +2,84 @@ package routes
 
 import (
 	"fmt"
-	"bytes"
+	// "bytes"
 	"strconv"
+	"encoding/json"
 	fiber "github.com/gofiber/fiber/v2"
 	server "github.com/0187773933/GO_SERVER/v1/server"
 	bolt "github.com/boltdb/bolt"
-	circular "github.com/0187773933/BoltCircular/v1/circular"
+	// circular "github.com/0187773933/BoltCircular/v1/circular"
 	youtube "github.com/0187773933/MediaServer/v1/youtube"
 )
 
+type YoutubeVideo struct {
+	Id string `json:"id"`
+	Name string `json:"name"`
+	Position int `json:"position"`
+}
+
+type YoutubePlaylist struct {
+	Id string `json:"id"`
+	Name string `json:"name"`
+	Index int `json:"index"`
+	Total int `json:"total"`
+	Videos []YoutubeVideo `json:"videos"`
+}
 func YouTube_Playlist_Import( s *server.Server ) fiber.Handler {
 	return func( c *fiber.Ctx ) error {
 		playlist_id := c.Params( "playlist_id" )
 		playlist := youtube.GetVideosInPlaylist( s.Config.MiscMap[ "google_key" ] , playlist_id )
-		cl_key := fmt.Sprintf( "youtube-playlist-%s" , playlist_id )
-		cl := circular.Open( s.DB , cl_key )
+		var ytp YoutubePlaylist
+		ytp.Id = playlist_id
+		ytp.Name = playlist.Name
+		ytp.Index = 0
+		ytp.Total = len( playlist.Items )
 		for _ , item := range playlist.Items {
-			cl.AddNx( []byte( item.Snippet.ResourceId.VideoId ) )
+			var v YoutubeVideo
+			v.Id = item.Snippet.ResourceId.VideoId
+			v.Name = item.Snippet.Title
+			v.Position = 0
+			ytp.Videos = append( ytp.Videos , v )
 		}
+		ytp_json , _ := json.Marshal( ytp )
 		s.DB.Update( func( tx *bolt.Tx ) error {
-			youtube_playlist_title , _ := tx.CreateBucketIfNotExists( []byte( "youtube-titles-playlist" ) )
-			youtube_playlist_title.Put( []byte( playlist_id ) , []byte( playlist.Name ) )
-			youtube_id_title , _ := tx.CreateBucketIfNotExists( []byte( "youtube-id-title" ) )
-			youtube_id_position , _ := tx.CreateBucketIfNotExists( []byte( "youtube-id-position" ) )
-			for _ , item := range playlist.Items {
-				id := item.Snippet.ResourceId.VideoId
-				title := item.Snippet.Title
-				youtube_id_title.Put( []byte( id ) , []byte( title ) )
-				youtube_id_position.Put( []byte( id ) , []byte( "0" ) )
-			}
+			b , _ := tx.CreateBucketIfNotExists( []byte( "youtube-playlists" ) )
+			b.Put( []byte( playlist_id ) , ytp_json )
 			return nil
 		})
 		return c.JSON( fiber.Map{
 			"result": true ,
+			"playlist": ytp ,
 		})
 	}
 }
 
 func YouTube_Playlist_Get( s *server.Server ) fiber.Handler {
 	return func( c *fiber.Ctx ) error {
-		video_ids := []string{}
 		playlist_id := c.Params( "playlist_id" )
-		playlist_title := ""
+		var ytp YoutubePlaylist
 		s.DB.View( func( tx *bolt.Tx ) error {
-			cl_key := fmt.Sprintf( "youtube-playlist-%s" , playlist_id )
-			b := tx.Bucket( []byte( cl_key ) )
-			b.ForEach( func( k , v []byte ) error {
-				fmt.Printf( "key=%s , value=%s\n" , k , v )
-				video_ids = append( video_ids , string( v ) )
-				return nil
-			})
-			title_b := tx.Bucket( []byte( "youtube-titles-playlist" ) )
-			playlist_title = string( title_b.Get( []byte( playlist_id ) ) )
+			b := tx.Bucket( []byte( "youtube-playlists" ) )
+			ytp_json := b.Get( []byte( playlist_id ) )
+			json.Unmarshal( ytp_json , &ytp )
 			return nil
 		})
 		return c.JSON( fiber.Map{
 			"result": true ,
-			"playlist_id": playlist_id ,
-			"title": playlist_title ,
-			"ids": video_ids ,
+			"playlist": ytp ,
 		})
 	}
 }
 
 func YouTube_Playlist_GetAll( s *server.Server ) fiber.Handler {
 	return func( c *fiber.Ctx ) error {
-		prefix := []byte( "youtube-playlist-" )
-		playlists := []string{}
+		var playlists []YoutubePlaylist
 		s.DB.View( func( tx *bolt.Tx ) error {
-			tx.ForEach( func( bucket_name []byte , _ *bolt.Bucket ) error {
-				if bytes.HasPrefix( bucket_name , prefix ) == false { return nil }
-				id := string( bucket_name )[ len( prefix ) : ]
-				playlists = append( playlists , id )
-				fmt.Println( id )
+			b := tx.Bucket( []byte( "youtube-playlists" ) )
+			b.ForEach( func( k , v []byte ) error {
+				var ytp YoutubePlaylist
+				json.Unmarshal( v , &ytp )
+				playlists = append( playlists , ytp )
 				return nil
 			})
 			return nil
@@ -89,68 +94,68 @@ func YouTube_Playlist_GetAll( s *server.Server ) fiber.Handler {
 func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 	return func( c *fiber.Ctx ) error {
 		playlist_id := c.Params( "playlist_id" )
-		playlist_title := ""
-		next_id := ""
-		next_title := ""
-		next_index := ""
-		next_position := ""
-		cl_key := fmt.Sprintf( "youtube-playlist-%s" , playlist_id )
-		cl := circular.Open( s.DB , cl_key )
+		var ytp YoutubePlaylist
+		var next_id string
+		var next_index int
+		var next_position int
 		s.DB.Update( func( tx *bolt.Tx ) error {
-			playlist_title_b := tx.Bucket( []byte( "youtube-titles-playlist" ) )
-			position_b := tx.Bucket( []byte( "youtube-id-position" ) )
-			title_b := tx.Bucket( []byte( "youtube-id-title" ) )
-			playlist_title = string( playlist_title_b.Get( []byte( playlist_id ) ) )
-
-			fmt.Println( "YouTube_Playlist_Next - 1" )
-			fmt.Println( "YouTube_Playlist_Next - 2" )
-			current , ci , _ := cl.Current()
-			current_id := string( current )
-			current_position := string( position_b.Get( current ) )
-			current_position_int , _ := strconv.Atoi( current_position )
-			if current_position_int == 0 {
-				next_id = current_id
-				next_index = string( ci )
-				next_title = string( title_b.Get( current ) )
-				next_position = "0"
-				return nil
+			b := tx.Bucket( []byte( "youtube-playlists" ) )
+			ytp_json := b.Get( []byte( playlist_id ) )
+			json.Unmarshal( ytp_json , &ytp )
+			if ytp.Videos[ ytp.Index ].Position == -1 {
+				ytp.Index++
+				if ytp.Index >= ytp.Total {
+					ytp.Index = 0
+				}
+				next_id = ytp.Videos[ ytp.Index ].Id
+				next_index = ytp.Index
+				next_position = 0
+			} else {
+				// continuing where you left off , not finished
+				next_id = ytp.Videos[ ytp.Index ].Id
+				next_index = ytp.Index
+				next_position = ytp.Videos[ ytp.Index ].Position
+				fmt.Println( "continuing where you left off" , next_id , next_index , next_position )
 			}
-			fmt.Println( "YouTube_Playlist_Next - 3" )
-			next := cl.Next()
-			fmt.Println( "YouTube_Playlist_Next - 4" )
-			next_id = string( next )
-			_ , ni , _ := cl.Current()
-			next_index = string( ni )
-			next_title = string( title_b.Get( next ) )
-			next_position = "0"
+			// restore
+			ytp_json , _ = json.Marshal( ytp )
+			b.Put( []byte( playlist_id ) , ytp_json )
 			return nil
 		})
-		r := fiber.Map{
+		return c.JSON(fiber.Map{
 			"result": true ,
 			"playlist_id": playlist_id ,
-			"playlist_title": playlist_title ,
 			"next_id": next_id ,
 			"next_index": next_index ,
-			"next_title": next_title ,
 			"next_position": next_position ,
-		}
-		fmt.Println( r )
-		return c.JSON( r )
+		})
 	}
 }
 
 func YouTube_Update_Position( s *server.Server ) fiber.Handler {
 	return func( c *fiber.Ctx ) error {
+		playlist_id := c.Params( "playlist_id" )
 		video_id := c.Params( "video_id" )
 		position := c.Params( "position" )
-		completed := c.Params( "completed" )
-		fmt.Println( "YouTube_Update_Position" , video_id , position , completed )
-		if completed == "true" {
-			position = "-1"
-		}
+		fmt.Println( "YouTube_Update_Position" , video_id , position )
 		s.DB.Update( func( tx *bolt.Tx ) error {
-			youtube_id_position , _ := tx.CreateBucketIfNotExists( []byte( "youtube-id-position" ) )
-			youtube_id_position.Put( []byte( video_id ) , []byte( position ) )
+			b , _ := tx.CreateBucketIfNotExists( []byte( "youtube-playlists" ) )
+			ytp_json := b.Get( []byte( playlist_id ) )
+			var ytp YoutubePlaylist
+			json.Unmarshal( ytp_json , &ytp )
+			for i , _ := range ytp.Videos {
+				if ytp.Videos[ i ].Id != video_id { continue; }
+				position_int , _ := strconv.Atoi( position )
+				ytp.Videos[ i ].Position = position_int
+				fmt.Println( "setting position" , video_id , i , position_int )
+				if ytp.Index != i {
+					fmt.Println( "resetting index" , i )
+					ytp.Index = i
+				}
+				break
+			}
+			ytp_json , _ = json.Marshal( ytp )
+			b.Put( []byte( playlist_id ) , ytp_json )
 			return nil
 		})
 		return c.JSON( fiber.Map{
