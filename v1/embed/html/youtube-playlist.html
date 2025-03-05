@@ -242,29 +242,23 @@
 				try {
 					if ( !window.FSM.player ) { return; }
 					if ( !window.FSM.player.getCurrentTime ) { return; }
-
-					console.log( "checking position - 1" );
 					const current_time = parseInt( window.FSM.player.getCurrentTime() );
 					if ( current_time === window.FSM.last_updated_time ) { return; }
 					window.FSM.last_updated_time = current_time;
-					console.log( "checking position - 2" );
-
 					let duration = parseInt( window.FSM.player.getDuration() );
 					let completed_at = ( duration * 0.99 );
-
 					window.FSM.current_position = current_time;
 					if ( current_time >= completed_at ) {
 						window.FSM.current_completed = true;
 						window.FSM.current_position = -1;
+						window.FSM.last_updated_time = -1;
 					}
 					await post_update_position();
-					console.log( "checking position - 3" );
 				} catch( e ) { console.log( e ); return; }
 			} , 3000 );
 		}
 
 		( async ()=> {
-
 			let tag = document.createElement( "script" );
 			tag.src = "https://www.youtube.com/player_api";
 			let first_script_tag = document.getElementsByTagName( "script" )[ 0 ];
@@ -272,24 +266,18 @@
 			await player_ready();
 			console.log( "1.) player ready" );
 			start_background_watcher();
-
 			window.FSM.saved_position = await get_saved_playlist_position();
 			console.log( window.FSM.saved_position );
 			console.log( "2.) retrieved playlist history" );
-
 			document.getElementById( "playButton" ).addEventListener( "click" , () => {
+				window.FSM.player.setShuffle( false );
 				window.FSM.player.loadPlaylist({
 					list: window.FSM.saved_position.playlist_id ,
 					listType: "playlist" ,
 					index: window.FSM.saved_position.next_index ,
 					startSeconds: window.FSM.saved_position.next_position ,
 				});
-				// window.FSM.player.setShuffle( false );
-				// window.FSM.player.seekTo( parseInt( window.FSM.next_position ) );
-				// window.FSM.player.playVideoAt( window.FSM.saved_position );
-				// window.FSM.player.playVideo();
 				document.getElementById( "playButton" ).style.display = "none";
 			});
-
 		})();
 	</script>
