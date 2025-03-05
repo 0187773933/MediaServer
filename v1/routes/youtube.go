@@ -107,10 +107,9 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 				if ytp.Index >= ytp.Total {
 					ytp.Index = 0
 				}
-				if ytp.Videos[ ytp.Index ] == -1 {
+				if ytp.Videos[ ytp.Index ].Position == -1 {
 					next_index = ytp.Index
 					next_position = 0
-					break
 				}
 				next_id = ytp.Videos[ ytp.Index ].Id
 				next_index = ytp.Index
