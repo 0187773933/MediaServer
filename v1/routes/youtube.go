@@ -94,13 +94,16 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 		next_title := ""
 		next_index := ""
 		next_position := ""
-		s.DB.View( func( tx *bolt.Tx ) error {
+		cl_key := fmt.Sprintf( "youtube-playlist-%s" , playlist_id )
+		cl := circular.Open( s.DB , cl_key )
+		s.DB.Update( func( tx *bolt.Tx ) error {
 			playlist_title_b := tx.Bucket( []byte( "youtube-titles-playlist" ) )
 			position_b := tx.Bucket( []byte( "youtube-id-position" ) )
 			title_b := tx.Bucket( []byte( "youtube-id-title" ) )
 			playlist_title = string( playlist_title_b.Get( []byte( playlist_id ) ) )
-			cl_key := fmt.Sprintf( "youtube-playlist-%s" , playlist_id )
-			cl := circular.Open( s.DB , cl_key )
+
+			fmt.Println( "YouTube_Playlist_Next - 1" )
+			fmt.Println( "YouTube_Playlist_Next - 2" )
 			current , ci , _ := cl.Current()
 			current_id := string( current )
 			current_position := string( position_b.Get( current ) )
@@ -112,7 +115,9 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 				next_position = "0"
 				return nil
 			}
+			fmt.Println( "YouTube_Playlist_Next - 3" )
 			next := cl.Next()
+			fmt.Println( "YouTube_Playlist_Next - 4" )
 			next_id = string( next )
 			_ , ni , _ := cl.Current()
 			next_index = string( ni )
@@ -120,7 +125,7 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 			next_position = "0"
 			return nil
 		})
-		return c.JSON( fiber.Map{
+		r := fiber.Map{
 			"result": true ,
 			"playlist_id": playlist_id ,
 			"playlist_title": playlist_title ,
@@ -128,6 +133,28 @@ func YouTube_Playlist_Next( s *server.Server ) fiber.Handler {
 			"next_index": next_index ,
 			"next_title": next_title ,
 			"next_position": next_position ,
+		}
+		fmt.Println( r )
+		return c.JSON( r )
+	}
+}
+
+func YouTube_Update_Position( s *server.Server ) fiber.Handler {
+	return func( c *fiber.Ctx ) error {
+		video_id := c.Params( "video_id" )
+		position := c.Params( "position" )
+		completed := c.Params( "completed" )
+		fmt.Println( "YouTube_Update_Position" , video_id , position , completed )
+		if completed == "true" {
+			position = "-1"
+		}
+		s.DB.Update( func( tx *bolt.Tx ) error {
+			youtube_id_position , _ := tx.CreateBucketIfNotExists( []byte( "youtube-id-position" ) )
+			youtube_id_position.Put( []byte( video_id ) , []byte( position ) )
+			return nil
+		})
+		return c.JSON( fiber.Map{
+			"result": true ,
 		})
 	}
 }
