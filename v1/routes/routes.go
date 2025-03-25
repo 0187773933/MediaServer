@@ -92,11 +92,13 @@ func SetupAdminRoutes( s *server.Server ) {
 	admin.Get( "/import" , HTML_Serve( s , "import" ) )
 	// youtube
 	youtube := admin.Group( "/youtube" )
-	youtube.Get( "/playlist/:playlist_id" , HTML_Serve( s , "youtube-playlist" ) )
+	// youtube.Get( "/playlist/:playlist_id" , HTML_Serve( s , "youtube-playlist" ) )
 	youtube.Get( "/import/playlist/:playlist_id" , YouTube_Playlist_Import( s ) )
 	youtube.Get( "/get/playlist/:playlist_id" , YouTube_Playlist_Get( s ) )
 	youtube.Get( "/get/playlists" , YouTube_Playlist_GetAll( s ) )
-	youtube.Get( "/playlist/:playlist_id/next" , YouTube_Playlist_Next( s ) )
+	youtube.Get( "/playlist/:playlist_id" , YouTube_Playlist_Next_New_Session( s ) )
+	youtube.Get( "/playlist/:playlist_id/:session_id/next" , YouTube_Playlist_Next( s ) ).Name( "youtube_playlist_session_next" )
+	// youtube.Get( "/playlist/:playlist_id/:session_id/next" , YouTube_Playlist_Next( s ) )
 	// youtube.Get( "/playlist/:playlist_id/previous" , YouTube_Playlist_Previous( s ) )
-	youtube.Get( "/playlist/:playlist_id/update/position/:video_id/:position" , YouTube_Update_Position( s ) )
+	// youtube.Get( "/playlist/:playlist_id/update/position/:video_id/:position" , YouTube_Update_Position( s ) )
 }

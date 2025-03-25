@@ -3,12 +3,12 @@ module github.com/0187773933/MediaServer
 go 1.23.6
 
 require (
-	github.com/0187773933/BoltCircular v1.0.2
 	github.com/0187773933/GO_SERVER v1.1.19
 	github.com/0187773933/Logger v1.1.18
 	github.com/boltdb/bolt v1.3.1
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/gosimple/slug v1.15.0
+	github.com/oklog/ulid/v2 v2.1.0
 	google.golang.org/api v0.223.0
 )
 

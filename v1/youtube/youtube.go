@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"context"
 	slug "github.com/gosimple/slug"
-	"reflect"
+	// "reflect"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
 )
@@ -24,9 +24,8 @@ func fetch_playlist_items( service *youtube.Service , playlist_id string , page_
 	if err != nil {
 		fmt.Printf( "Error making API call: %v" , err )
 	}
-	fmt.Println( response )
-	fmt.Println( reflect.TypeOf( response ) )
 	*items = append( *items , response.Items... )
+	fmt.Printf( "Fetched %d items\n" , len( response.Items ) )
 	if response.NextPageToken != "" {
 		fetch_playlist_items( service , playlist_id , response.NextPageToken , items )
 	}

@@ -32,6 +32,7 @@
   <script src="/cdn/jquery.min.js"></script>
   <script src="/cdn/bootstrap.bundle.min.js"></script>
   <script type="text/javascript">
+    console.clear();
     function get_json( url ) {
       return new Promise( function( resolve , reject ) {
         try {
@@ -72,7 +73,8 @@
           result.type = "YouTube Playlist";
           result.playlistId = urlObj.searchParams.get( 'list' ) || "Not Found";
           let url = window.location.href.replace( /\/import$/ ,`/youtube/import/playlist/${result.playlistId}` );
-          let import_result = await get_json( url );
+          console.log( url );
+          result.imported = await get_json( url );
           return result;
         }
         // YouTube Channel: match /channel/ or /user/ followed by an ID or username
@@ -149,14 +151,14 @@
       return result;
     }
 
-    document.getElementById("detect-button").addEventListener("click", function(){
+    document.getElementById("detect-button").addEventListener("click", async function(){
       let link = document.getElementById("import-link").value.trim();
       let resultDiv = document.getElementById("result");
       if (!link) {
         resultDiv.textContent = "Please enter a URL.";
         return;
       }
-      let parsed = parseLink(link);
+      let parsed = await parseLink(link);
       resultDiv.textContent = "Detected type: " + parsed.type + "\n" + JSON.stringify(parsed, null, 2);
     });
   </script>
