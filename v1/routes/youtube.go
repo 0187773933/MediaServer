@@ -3,7 +3,7 @@ package routes
 import (
 	"fmt"
 	// "bytes"
-	// "strconv"
+	"strconv"
 	// "strings"
 	"time"
 	"encoding/json"
@@ -20,6 +20,8 @@ type YoutubeVideo struct {
 	Name string `json:"name"`
 	Position int `json:"position"`
 	Accessed int64 `json:"accessed"`
+	Description string `json:"description"`
+	Thumbnail string `json:"thumbnail"`
 	Tags []string `json:"tags"`
 }
 
@@ -55,6 +57,8 @@ func YouTube_Playlist_Import( s *server.Server ) fiber.Handler {
 			var v YoutubeVideo
 			v.Id = item.Snippet.ResourceId.VideoId
 			v.Name = item.Snippet.Title
+			v.Description = item.Snippet.Description
+			v.Thumbnail = item.Snippet.Thumbnails.Default.Url
 			v.Position = 0
 			v.Accessed = now
 			ytp.Videos = append( ytp.Videos , v )
@@ -173,7 +177,6 @@ func YouTube_Session_Next( s *server.Server ) fiber.Handler {
 				return nil
 			}
 			json.Unmarshal( session_json , &session )
-			fmt.Println( session )
 			session.Accessed = now
 			if session.Playlist.Videos[ session.Playlist.Index ].Position == -1 {
 				session.Playlist.Index++
@@ -210,34 +213,41 @@ func YouTube_Session_Next( s *server.Server ) fiber.Handler {
 	}
 }
 
-// func YouTube_Update_Position( s *server.Server ) fiber.Handler {
-// 	return func( c *fiber.Ctx ) error {
-// 		playlist_id := c.Params( "playlist_id" )
-// 		video_id := c.Params( "video_id" )
-// 		position := c.Params( "position" )
-// 		fmt.Println( "YouTube_Update_Position" , video_id , position )
-// 		s.DB.Update( func( tx *bolt.Tx ) error {
-// 			b , _ := tx.CreateBucketIfNotExists( []byte( "youtube-playlists" ) )
-// 			ytp_json := b.Get( []byte( playlist_id ) )
-// 			var ytp YoutubePlaylist
-// 			json.Unmarshal( ytp_json , &ytp )
-// 			for i , _ := range ytp.Videos {
-// 				if ytp.Videos[ i ].Id != video_id { continue; }
-// 				position_int , _ := strconv.Atoi( position )
-// 				ytp.Videos[ i ].Position = position_int
-// 				fmt.Println( "setting position" , video_id , i , position_int )
-// 				if ytp.Index != i {
-// 					fmt.Println( "resetting index" , i )
-// 					ytp.Index = i
-// 				}
-// 				break
-// 			}
-// 			ytp_json , _ = json.Marshal( ytp )
-// 			b.Put( []byte( playlist_id ) , ytp_json )
-// 			return nil
-// 		})
-// 		return c.JSON( fiber.Map{
-// 			"result": true ,
-// 		})
-// 	}
-// }
+func YouTube_Session_Update_Position( s *server.Server ) fiber.Handler {
+	return func( c *fiber.Ctx ) error {
+		now := time.Now().UnixMilli()
+		session_id := c.Params( "session_id" )
+		video_id := c.Params( "video_id" )
+		position := c.Params( "position" )
+		position_int , _ := strconv.Atoi( position )
+
+		s.LOG.Debug( fmt.Sprintf( "YouTube_Update_Position( %s , %s , %s )" , session_id , video_id , position ) )
+
+		var session YoutubeSession
+		s.DB.Update( func( tx *bolt.Tx ) error {
+			b := tx.Bucket( []byte( "youtube-sessions" ) )
+			session_json := b.Get( []byte( session_id ) )
+			if session_json == nil {
+				s.LOG.Fatal( "session json is empty ??" )
+				return nil
+			}
+			json.Unmarshal( session_json , &session )
+			session.Accessed = now
+			for i , _ := range session.Playlist.Videos {
+				if session.Playlist.Videos[ i ].Id != video_id { continue; }
+				session.Playlist.Videos[ i ].Position = position_int
+				if session.Playlist.Index != i {
+					s.LOG.Debug( fmt.Sprintf( "resetting index === %d" , i ) )
+					session.Playlist.Index = i
+				}
+				break
+			}
+			session_json , _ = json.Marshal( session )
+			b.Put( []byte( session_id ) , []byte( session_json ) )
+			return nil
+		})
+		return c.JSON( fiber.Map{
+			"result": true ,
+		})
+	}
+}
