@@ -23,6 +23,8 @@ type YoutubeVideo struct {
 	Description string `json:"description"`
 	Thumbnail string `json:"thumbnail"`
 	Tags []string `json:"tags"`
+	ChannelId string `json:"channel_id"`
+	ChannelTitle string `json:"channel_title"`
 }
 
 type YoutubePlaylist struct {
@@ -54,13 +56,23 @@ func YouTube_Playlist_Import( s *server.Server ) fiber.Handler {
 		ytp.Accessed = now
 		ytp.Total = len( playlist.Items )
 		for _ , item := range playlist.Items {
+			// https://pkg.go.dev/google.golang.org/api@v0.228.0/youtube/v3#PlaylistItemSnippet
+			// https://pkg.go.dev/google.golang.org/api@v0.228.0/youtube/v3#ThumbnailDetails
 			var v YoutubeVideo
 			v.Id = item.Snippet.ResourceId.VideoId
 			v.Name = item.Snippet.Title
 			v.Description = item.Snippet.Description
-			v.Thumbnail = item.Snippet.Thumbnails.Default.Url
+			if item.Snippet.Thumbnails.Maxres != nil {
+				v.Thumbnail = item.Snippet.Thumbnails.Maxres.Url
+			} else if item.Snippet.Thumbnails.High != nil {
+				v.Thumbnail = item.Snippet.Thumbnails.High.Url
+			} else {
+				v.Thumbnail = item.Snippet.Thumbnails.Default.Url
+			}
 			v.Position = 0
 			v.Accessed = now
+			v.ChannelId = item.Snippet.VideoOwnerChannelId
+			v.ChannelTitle = item.Snippet.VideoOwnerChannelTitle
 			ytp.Videos = append( ytp.Videos , v )
 		}
 		ytp_json , _ := json.Marshal( ytp )
@@ -248,6 +260,27 @@ func YouTube_Session_Update_Position( s *server.Server ) fiber.Handler {
 		})
 		return c.JSON( fiber.Map{
 			"result": true ,
+		})
+	}
+}
+
+func YouTube_Session_Get( s *server.Server ) fiber.Handler {
+	return func( c *fiber.Ctx ) error {
+		session_id := c.Params( "session_id" )
+		var session YoutubeSession
+		s.DB.View( func( tx *bolt.Tx ) error {
+			b := tx.Bucket( []byte( "youtube-sessions" ) )
+			session_json := b.Get( []byte( session_id ) )
+			if session_json == nil {
+				s.LOG.Fatal( "session json is empty ??" )
+				return nil
+			}
+			json.Unmarshal( session_json , &session )
+			return nil
+		})
+		return c.JSON( fiber.Map{
+			"result": true ,
+			"session": session ,
 		})
 	}
 }

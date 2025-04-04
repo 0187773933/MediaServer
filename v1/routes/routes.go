@@ -100,6 +100,8 @@ func SetupAdminRoutes( s *server.Server ) {
 	// youtube.Get( "/playlist/:playlist_id/:session_id/next" , YouTube_Playlist_Next( s ) ).Name( "youtube_playlist_session_next" )
 	// youtube.Get( "/:session_id" , YouTube_Session_Next( s ) ).Name( "youtube_session" )
 	youtube.Get( "/:session_id" , HTML_Serve( s , "youtube-playlist" ) ).Name( "youtube_session" )
+	youtube.Get( "/:session_id/view" , HTML_Serve( s , "youtube-session" ) )
+	youtube.Get( "/:session_id/get" , YouTube_Session_Get( s ) )
 	youtube.Get( "/:session_id/next" , YouTube_Session_Next( s ) )
 	youtube.Get( "/:session_id/update/:video_id/position/:position" , YouTube_Session_Update_Position( s ) )
 	// youtube.Get( "/playlist/:playlist_id/:session_id/next" , YouTube_Playlist_Next( s ) )

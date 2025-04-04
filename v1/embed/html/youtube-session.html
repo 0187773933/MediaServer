@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>YouTube Playlist</title>
+	<style>
+		body, html {
+			height: 100%;
+			width: 100%;
+			margin: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: black;
+		}
+		#yt-wrap {
+			width: 100%;
+			height: 100%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+		#ytplayer {
+			width: 100%;
+			height: 100%;
+		}
+		#playButton {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			width: 500px;
+			height: 500px;
+			color: white;
+			transform: translate(-50%, -50%);
+			background-color: red;
+			padding: 10px 20px;
+			cursor: pointer;
+			z-index: 1;
+		}
+	</style>
+</head>
+<body>
+	<div id="yt-wrap">
+		<div id="ytplayer"></div>
+		<div id="playButton">Play</div>
+	</div>
+	<script>
+
+		function get_youtube_playlist_id_from_url() {
+			const match = window.location.href.match( /\/playlist\/([a-zA-Z0-9_-]+)$/ );
+			return match ? match[ 1 ] : false;
+		}
+
+		function get_youtube_session_id_from_url() {
+			const match = window.location.href.match( /[0-9A-HJKMNP-TV-Z]{26}/ );
+			return match ? match[ 0 ] : false;
+		}
+
+		function format_admin_url( path ) {
+			return window.location.href.replace( /^([^\/]+\/\/[^\/]+\/[^\/]+\/)[^]*$/ , `$1${path}` );
+		}
+
+
+		function get_saved_session_position() {
+			return new Promise( function( resolve , reject ) {
+				try {
+					window.FSM.session_id = get_youtube_session_id_from_url();
+					let url = format_admin_url( `youtube/${window.FSM.session_id}/next` );
+					console.log( url );
+					let xhr = new XMLHttpRequest();
+					xhr.open( "GET" , url , false );
+					xhr.setRequestHeader( "Content-Type" , "application/json" );
+					xhr.onload = function () {
+						if ( xhr.status === 200 ) {
+							var response = JSON.parse( xhr.responseText );
+							resolve( response );
+							return;
+						} else {
+							console.error( "error importing item:" , xhr.statusText );
+							resolve( false );
+							return;
+						}
+					};
+					xhr.onerror = function () {
+						console.error( "GET request error" );
+						resolve( false );
+						return;
+					};
+					xhr.send();
+				} catch ( error ) {
+					console.log( error );
+					resolve( false );
+					return;
+				}
+			});
+		}
+		function post_update_position() {
+			return new Promise( function( resolve , reject ) {
+				try {
+					let url = format_admin_url( `youtube/${window.FSM.session_id}/update/${window.FSM.current_id}/position/${window.FSM.current_position}` );
+					console.log( url );
+					let xhr = new XMLHttpRequest();
+					xhr.open( "GET" , url , false );
+					xhr.setRequestHeader( "Content-Type" , "application/json" );
+					xhr.onload = function () {
+						if ( xhr.status === 200 ) {
+							var response = JSON.parse( xhr.responseText );
+							resolve( response );
+							return;
+						} else {
+							console.error( "error importing item:" , xhr.statusText );
+							resolve( false );
+							return;
+						}
+					};
+					xhr.onerror = function () {
+						console.error( "POST request error" );
+						resolve( false );
+						return;
+					};
+					xhr.send();
+				} catch ( error ) {
+					console.log( error );
+					resolve( false );
+					return;
+				}
+			});
+		}
+		( async ()=> {
+			let windows.FSM = {
+				session_id:
+			}
+		})();
+	</script>
+</body>
+</html>
