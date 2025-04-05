@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>YouTube Playlist</title>
+	<style>
+		body, html {
+			height: 100%;
+			width: 100%;
+			margin: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: black;
+		}
+		#yt-wrap {
+			width: 100%;
+			height: 100%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+		#ytplayer {
+			width: 100%;
+			height: 100%;
+		}
+		#playButton {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			width: 500px;
+			height: 500px;
+			color: white;
+			transform: translate(-50%, -50%);
+			background-color: red;
+			padding: 10px 20px;
+			cursor: pointer;
+			z-index: 1;
+		}
+	</style>
+</head>
+<body>
+	<div id="yt-wrap">
+		<div id="ytplayer"></div>
+		<div id="playButton">Play</div>
+	</div>
+	<script>
+
+		window.FSM = {
+			api_ready: false ,
+			player_ready: false ,
+			player: null ,
+			playlist_id: "" ,
+			session_id: "" ,
+			saved_position: false ,
+			current_position: 0 ,
+			current_id: "" ,
+			current_duration: 0 ,
+			current_completed: false ,
+			current_completed_at: 0 ,
+			last_updated_time: 0 ,
+		};
+
+		function onYouTubePlayerAPIReady( event ) {
+			console.log( "onYouTubePlayerAPIReady()" );
+			window.FSM.player = new YT.Player( "ytplayer" , {
+				width: "100%" ,
+				height: "100%" ,
+				playerVars: {
+					"autoplay": 1 ,
+					"playsinline": 1 ,
+				} ,
+				events: {
+					"onReady": onPlayerReady ,
+					"onStateChange": onPlayerStateChange
+				}
+			});
+			// startTrackingPosition();
+			window.FSM.api_ready = true;
+		}
+
+		function onPlayerReady( event ) {
+			console.log( "onPlayerReady()" , event );
+			window.FSM.player_ready = true;
+		}
+
+		function player_ready( timeout=10000 ) {
+			return new Promise( function( resolve , reject ) {
+				try {
+					let start = Date.now();
+					let interval = setInterval( ()=> {
+						if ( window.FSM.api_ready && window.FSM.player_ready ) {
+							clearInterval( interval );
+							resolve();
+							return;
+						}
+						if ( Date.now() - start > timeout ) {
+							clearInterval( interval );
+							resolve( false );
+							return;
+						}
+					} , 100 );
+				} catch( error ) {
+					resolve( false );
+					return;
+				}
+			});
+		}
+
+		function get_youtube_playlist_id_from_url() {
+			const match = window.location.href.match( /\/playlist\/([a-zA-Z0-9_-]+)$/ );
+			return match ? match[ 1 ] : false;
+		}
+
+		function get_youtube_session_id_from_url() {
+			const match = window.location.href.match(/[0-9A-HJKMNP-TV-Z]{26}/);
+			return match ? match[ 0 ] : false;
+		}
+
+		function format_admin_url( path ) {
+			return window.location.href.replace( /^([^\/]+\/\/[^\/]+\/[^\/]+\/)[^]*$/ , `$1${path}` );
+		}
+
+		function set_max_quality() {
+			const qualities = window.FSM.player.getAvailableQualityLevels();
+			if ( !qualities ) { return; }
+			if ( qualities.length < 1 ) { return; }
+			console.log( "setting quality to", qualities[ 0 ] );
+			window.FSM.player.setPlaybackQuality( qualities[ 0 ] );
+		}
+
+		function set_max_volume() {
+			window.FSM.player.setVolume( 100 );
+		}
+
+		function set_fullscreen() {
+			const player_element = document.getElementById( "ytplayer" );
+			if ( player_element.requestFullscreen ) {
+				player_element.requestFullscreen();
+			} else if ( player_element.mozRequestFullScreen ) { // Firefox
+				player_element.mozRequestFullScreen();
+			} else if ( player_element.webkitRequestFullscreen ) { // Chrome, Safari and Opera
+				player_element.webkitRequestFullscreen();
+			} else if ( player_element.msRequestFullscreen ) { // IE/Edge
+				player_element.msRequestFullscreen();
+			}
+		}
+
+		function get_video_id() {
+			const video_Url = window.FSM.player.getVideoUrl();
+			const url_params = new URLSearchParams( new URL( video_Url ).search );
+			const video_id = url_params.get( "v" );
+			return video_id;
+		}
+
+		function get_video_title() {
+			const video_data = window.FSM.player.getVideoData();
+			const video_title = video_data.title;
+			return video_title;
+		}
+
+		function get_saved_playlist_position() {
+			return new Promise( function( resolve , reject ) {
+				try {
+					window.FSM.playlist_id = get_youtube_playlist_id_from_url();
+					let url = format_admin_url( `youtube/playlist/${window.FSM.playlist_id}/next` );
+					console.log( url );
+					let xhr = new XMLHttpRequest();
+					xhr.open( "GET" , url , false );
+					xhr.setRequestHeader( "Content-Type" , "application/json" );
+					xhr.onload = function () {
+						if ( xhr.status === 200 ) {
+							var response = JSON.parse( xhr.responseText );
+							resolve( response );
+							return;
+						} else {
+							console.error( "error importing item:" , xhr.statusText );
+							resolve( false );
+							return;
+						}
+					};
+					xhr.onerror = function () {
+						console.error( "GET request error" );
+						resolve( false );
+						return;
+					};
+					xhr.send();
+				} catch ( error ) {
+					console.log( error );
+					resolve( false );
+					return;
+				}
+			});
+		}
+
+		function get_saved_session_position() {
+			return new Promise( function( resolve , reject ) {
+				try {
+					window.FSM.session_id = get_youtube_session_id_from_url();
+					let url = format_admin_url( `youtube/${window.FSM.session_id}/next` );
+					console.log( url );
+					let xhr = new XMLHttpRequest();
+					xhr.open( "GET" , url , false );
+					xhr.setRequestHeader( "Content-Type" , "application/json" );
+					xhr.onload = function () {
+						if ( xhr.status === 200 ) {
+							var response = JSON.parse( xhr.responseText );
+							resolve( response );
+							return;
+						} else {
+							console.error( "error importing item:" , xhr.statusText );
+							resolve( false );
+							return;
+						}
+					};
+					xhr.onerror = function () {
+						console.error( "GET request error" );
+						resolve( false );
+						return;
+					};
+					xhr.send();
+				} catch ( error ) {
+					console.log( error );
+					resolve( false );
+					return;
+				}
+			});
+		}
+		function post_update_position() {
+			return new Promise( function( resolve , reject ) {
+				try {
+					let url = format_admin_url( `youtube/${window.FSM.session_id}/update/${window.FSM.current_id}/position/${window.FSM.current_position}` );
+					console.log( url );
+					let xhr = new XMLHttpRequest();
+					xhr.open( "GET" , url , false );
+					xhr.setRequestHeader( "Content-Type" , "application/json" );
+					xhr.onload = function () {
+						if ( xhr.status === 200 ) {
+							var response = JSON.parse( xhr.responseText );
+							resolve( response );
+							return;
+						} else {
+							console.error( "error importing item:" , xhr.statusText );
+							resolve( false );
+							return;
+						}
+					};
+					xhr.onerror = function () {
+						console.error( "POST request error" );
+						resolve( false );
+						return;
+					};
+					xhr.send();
+				} catch ( error ) {
+					console.log( error );
+					resolve( false );
+					return;
+				}
+			});
+		}
+
+		function onPlayerStateChange( event ) {
+			console.log( "onPlayerStateChange()" , event );
+			if ( event.data === YT.PlayerState.ENDED ) {
+				if ( window.FSM.player.getPlaylistIndex() < window.FSM.player.getPlaylist().length - 1 ) {
+					window.FSM.player.nextVideo();
+				}
+			} else if ( event.data === YT.PlayerState.PLAYING ) {
+				window.FSM.current_id = get_video_id();
+				window.FSM.current_duration = parseInt( window.FSM.player.getDuration() );
+				window.FSM.completed_at = ( window.FSM.current_duration * 0.99 );
+				set_max_quality();
+				set_max_volume();
+				set_fullscreen();
+			}
+		}
+
+		function start_background_watcher() {
+			setInterval( async () => {
+				try {
+					if ( !window.FSM.player ) { return; }
+					if ( !window.FSM.player.getCurrentTime ) { return; }
+					const current_time = parseInt( window.FSM.player.getCurrentTime() );
+					if ( current_time === window.FSM.last_updated_time ) { return; }
+					window.FSM.last_updated_time = current_time;
+					let duration = parseInt( window.FSM.player.getDuration() );
+					let completed_at = ( duration * 0.99 );
+					window.FSM.current_position = current_time;
+					if ( current_time >= completed_at ) {
+						window.FSM.current_completed = true;
+						window.FSM.current_position = -1;
+						window.FSM.last_updated_time = -1;
+					}
+					await post_update_position();
+				} catch( e ) { console.log( e ); return; }
+			} , 3000 );
+		}
+
+		( async ()=> {
+			let tag = document.createElement( "script" );
+			tag.src = "https://www.youtube.com/player_api";
+			let first_script_tag = document.getElementsByTagName( "script" )[ 0 ];
+			first_script_tag.parentNode.insertBefore( tag , first_script_tag );
+			await player_ready();
+			console.log( "1.) player ready" );
+			start_background_watcher();
+			window.FSM.saved_position = await get_saved_session_position();
+			console.log( window.FSM.saved_position );
+			console.log( "2.) retrieved playlist history" );
+			document.getElementById( "playButton" ).addEventListener( "click" , () => {
+				window.FSM.player.setShuffle( false );
+				window.FSM.player.loadPlaylist({
+					list: window.FSM.saved_position.playlist_id ,
+					listType: "playlist" ,
+					index: window.FSM.saved_position.next_index ,
+					startSeconds: window.FSM.saved_position.next_position ,
+				});
+				document.getElementById( "playButton" ).style.display = "none";
+			});
+		})();
+	</script>
+</body>
+</html>

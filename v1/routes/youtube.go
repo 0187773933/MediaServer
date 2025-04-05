@@ -185,7 +185,7 @@ func YouTube_Session_Next( s *server.Server ) fiber.Handler {
 			b := tx.Bucket( []byte( "youtube-sessions" ) )
 			session_json := b.Get( []byte( session_id ) )
 			if session_json == nil {
-				s.LOG.Fatal( "session json is empty ??" )
+				s.LOG.Debug( "session json is empty ??" )
 				return nil
 			}
 			json.Unmarshal( session_json , &session )
@@ -240,7 +240,7 @@ func YouTube_Session_Update_Position( s *server.Server ) fiber.Handler {
 			b := tx.Bucket( []byte( "youtube-sessions" ) )
 			session_json := b.Get( []byte( session_id ) )
 			if session_json == nil {
-				s.LOG.Fatal( "session json is empty ??" )
+				s.LOG.Debug( "session json is empty ??" )
 				return nil
 			}
 			json.Unmarshal( session_json , &session )
